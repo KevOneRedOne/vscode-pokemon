@@ -2,6 +2,11 @@
 
 All notable changes to the "vscode-pokemon" extension will be documented in this file.
 
+## [4.2.1] - 2026-02-13
+
+- Release 4.2.1
+
+
 ## [4.2.0]
 
 - feat: add shiny sprites & spawn rate for gen 1-4
