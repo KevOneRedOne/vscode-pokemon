@@ -26,6 +26,8 @@ export interface PokemonConfig {
   possibleColors: PokemonColor[];
   originalSpriteSize?: number;
   extraSprites?: PokemonExtraSprite[];
+  evolvesTo?: PokemonType;
+  xpToEvolve?: number;
 }
 
 export const enum PokemonExtraSprite {
