@@ -92,6 +92,37 @@ Open the setting panel with Ctrl+, on Windows/Linux or Cmd(⌘)+, on MacOS. In t
 
 Set the size and position of the extension.
 
+## Pokemon Evolution & Experience System 🌟
+
+Your Pokemon now gain experience (XP) as you code! The more you code, the more XP your Pokemon accumulate, and they can evolve into their next forms.
+
+### How It Works
+
+- **Gain XP**: Your Pokemon earn experience points automatically as you:
+  - Type code (XP per character)
+  - Add new lines
+  - Save files
+- **Evolution**: When a Pokemon reaches the required XP threshold, it automatically evolves into its next form
+- **Evolution Notifications**: You'll receive a notification when a Pokemon evolves
+- **Track Progress**: Use the `Pokemon Coding: View pokemon stats and XP` command to see your Pokemon's current XP and evolution progress
+
+### Managing the XP System
+
+- **View Stats**: Run `Pokemon Coding: View pokemon stats and XP` from the command palette to see all your Pokemon's XP and evolution progress
+- **Toggle XP Tracking**: Use `Pokemon Coding: Toggle XP tracking` to enable or disable XP gain
+- **Settings**: You can also enable/disable XP tracking in settings by searching for `vscode-pokemon.enableXpTracking`
+
+### Evolution Chains
+
+All Pokemon from Generation 1-4 have their evolution chains implemented. Each evolution requires **50 XP**:
+- Bulbasaur → Ivysaur (50 XP) → Venusaur (50 XP)
+- Charmander → Charmeleon (50 XP) → Charizard (50 XP)
+- Squirtle → Wartortle (50 XP) → Blastoise (50 XP)
+- Pikachu → Raichu (50 XP)
+- And many more!
+
+**Tip:** Open the Developer Console (Help > Toggle Developer Tools) to see XP gains and evolution logs in real-time!
+
 ### Default Pokémon
 
 You can configure specific Pokémon to automatically appear when you first start using the extension. This is useful for setting up your preferred team without having to manually spawn them when you open new windows.
