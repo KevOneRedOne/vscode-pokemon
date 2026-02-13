@@ -20,11 +20,13 @@ import {
   getRandomPokemonConfig,
   POKEMON_DATA,
 } from '../common/pokemon-data';
+import { ExperienceManager } from './experience-manager';
 
 const EXTRA_POKEMON_KEY = 'vscode-pokemon.extra-pokemon';
 const EXTRA_POKEMON_KEY_TYPES = EXTRA_POKEMON_KEY + '.types';
 const EXTRA_POKEMON_KEY_COLORS = EXTRA_POKEMON_KEY + '.colors';
 const EXTRA_POKEMON_KEY_NAMES = EXTRA_POKEMON_KEY + '.names';
+const EXTRA_POKEMON_KEY_XP = EXTRA_POKEMON_KEY + '.xp';
 const DEFAULT_POKEMON_SCALE = PokemonSize.medium;
 const DEFAULT_COLOR = PokemonColor.default;
 const DEFAULT_POKEMON_TYPE = getDefaultPokemonType();
@@ -53,6 +55,7 @@ class PokemonQuickPickItem implements vscode.QuickPickItem {
 }
 
 let webviewViewProvider: PokemonWebviewViewProvider;
+let experienceManager: ExperienceManager;
 
 function getConfiguredSize(): PokemonSize {
   var size = vscode.workspace
@@ -158,6 +161,7 @@ export class PokemonSpecification {
   name: string;
   generation: string;
   originalSpriteSize: number;
+  experience: number;
 
   constructor(
     color: PokemonColor,
@@ -165,6 +169,7 @@ export class PokemonSpecification {
     size: PokemonSize,
     name?: string,
     generation?: string,
+    experience?: number,
   ) {
     this.color = color;
     this.type = type;
@@ -176,6 +181,7 @@ export class PokemonSpecification {
     }
     this.generation = generation || `gen${POKEMON_DATA[type].generation}`;
     this.originalSpriteSize = POKEMON_DATA[type].originalSpriteSize || 32;
+    this.experience = experience || 0;
   }
 
   static fromConfiguration(): PokemonSpecification {
@@ -213,6 +219,7 @@ export class PokemonSpecification {
       EXTRA_POKEMON_KEY_NAMES,
       [],
     );
+    var contextXp = context.globalState.get<number[]>(EXTRA_POKEMON_KEY_XP, []);
     var result: PokemonSpecification[] = [];
     for (let index = 0; index < contextTypes.length; index++) {
       result.push(
@@ -221,6 +228,8 @@ export class PokemonSpecification {
           contextTypes[index],
           size,
           contextNames[index],
+          undefined,
+          contextXp?.[index] ?? 0,
         ),
       );
     }
@@ -235,18 +244,22 @@ export async function storeCollectionAsMemento(
   var contextTypes = new Array(collection.length);
   var contextColors = new Array(collection.length);
   var contextNames = new Array(collection.length);
+  var contextXp = new Array(collection.length);
   for (let index = 0; index < collection.length; index++) {
     contextTypes[index] = collection[index].type;
     contextColors[index] = collection[index].color;
     contextNames[index] = collection[index].name;
+    contextXp[index] = collection[index].experience;
   }
   await context.globalState.update(EXTRA_POKEMON_KEY_TYPES, contextTypes);
   await context.globalState.update(EXTRA_POKEMON_KEY_COLORS, contextColors);
   await context.globalState.update(EXTRA_POKEMON_KEY_NAMES, contextNames);
+  await context.globalState.update(EXTRA_POKEMON_KEY_XP, contextXp);
   context.globalState.setKeysForSync([
     EXTRA_POKEMON_KEY_TYPES,
     EXTRA_POKEMON_KEY_COLORS,
     EXTRA_POKEMON_KEY_NAMES,
+    EXTRA_POKEMON_KEY_XP,
   ]);
 }
 
@@ -346,6 +359,12 @@ function getWebview(): vscode.Webview | undefined {
 }
 
 export function activate(context: vscode.ExtensionContext) {
+  // Initialize the Experience Manager
+  experienceManager = new ExperienceManager(context);
+  context.subscriptions.push({
+    dispose: () => experienceManager.dispose(),
+  });
+
   context.subscriptions.push(
     vscode.commands.registerCommand('vscode-pokemon.start', async () => {
       if (
@@ -889,6 +908,89 @@ export function activate(context: vscode.ExtensionContext) {
     ),
   );
 
+  // Command to view Pokemon stats (XP, evolution progress)
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'vscode-pokemon.view-pokemon-stats',
+      async () => {
+        const stats = await experienceManager.getPokemonStats();
+        void vscode.window.showInformationMessage(stats, {
+          modal: true,
+          detail: vscode.l10n.t(
+            'Pokemon gain experience as you code! Keep coding to help them evolve.',
+          ),
+        });
+      },
+    ),
+  );
+
+  // Command to toggle XP tracking
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'vscode-pokemon.toggle-xp-tracking',
+      async () => {
+        const currentState = experienceManager.isEnabled();
+        experienceManager.setEnabled(!currentState);
+        const newState = experienceManager.isEnabled();
+        void vscode.window.showInformationMessage(
+          vscode.l10n.t(
+            'Pokemon XP tracking is now {0}',
+            newState ? 'enabled ✅' : 'disabled ❌',
+          ),
+        );
+      },
+    ),
+  );
+
+  // Command to refresh Pokemon (used internally after evolution)
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      'vscode-pokemon.refresh-pokemon',
+      async () => {
+        console.log('[Pokemon Refresh] Refresh command triggered');
+        const panel = getPokemonPanel();
+        if (panel) {
+          console.log('[Pokemon Refresh] Panel found');
+          const collection = PokemonSpecification.collectionFromMemento(
+            context,
+            getConfiguredSize(),
+          );
+          console.log(
+            `[Pokemon Refresh] Collection has ${collection.length} Pokemon`,
+          );
+
+          // Delete each Pokemon individually by name (more reliable than reset)
+          console.log('[Pokemon Refresh] Removing Pokemon individually...');
+          for (const item of collection) {
+            console.log(`[Pokemon Refresh] Deleting ${item.name}...`);
+            panel.deletePokemon(item.name);
+            await new Promise((resolve) => setTimeout(resolve, 50));
+          }
+
+          // Wait for all deletions to complete
+          console.log('[Pokemon Refresh] Waiting for deletions to complete...');
+          await new Promise((resolve) => setTimeout(resolve, 600));
+
+          // Respawn each Pokemon with updated types
+          console.log('[Pokemon Refresh] Spawning updated Pokemon...');
+          for (let i = 0; i < collection.length; i++) {
+            const item = collection[i];
+            console.log(
+              `[Pokemon Refresh] ${i + 1}/${collection.length}: Spawning ${item.name} (${item.type})`,
+            );
+            panel.spawnPokemon(item);
+            // Add delay between spawns
+            await new Promise((resolve) => setTimeout(resolve, 150));
+          }
+
+          console.log('[Pokemon Refresh] Evolution complete!');
+        } else {
+          console.log('[Pokemon Refresh] No panel found!');
+        }
+      },
+    ),
+  );
+
   // Listening to configuration changes
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration(
@@ -917,6 +1019,13 @@ export function activate(context: vscode.ExtensionContext) {
 
         if (e.affectsConfiguration('vscode-pokemon.throwBallWithMouse')) {
           updatePanelThrowWithMouse();
+        }
+
+        if (e.affectsConfiguration('vscode-pokemon.enableXpTracking')) {
+          const enabled = vscode.workspace
+            .getConfiguration('vscode-pokemon')
+            .get<boolean>('enableXpTracking', true);
+          experienceManager.setEnabled(enabled);
         }
       },
     ),
